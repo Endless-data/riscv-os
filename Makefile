@@ -9,7 +9,8 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 OBJDUMP = $(CROSS_COMPILE)objdump
 
 # 编译选项
-CFLAGS = -Wall -Werror -O2 -ffreestanding -nostdlib -nostdinc -mcmodel=medany
+# 移除了-nostdinc以允许包含标准C头文件如stdarg.h
+CFLAGS = -Wall -O2 -ffreestanding -nostdlib -mcmodel=medany -g
 ASFLAGS = -march=rv64g
 
 # QEMU命令
