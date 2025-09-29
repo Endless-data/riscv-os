@@ -1,6 +1,5 @@
 #include "types.h"
-#include "printf.h"
-#include "console.h"
+#include "defs.h"
 
 // 测试printf基本功能
 void test_printf_basic() {

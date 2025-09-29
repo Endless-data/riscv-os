@@ -1,5 +1,5 @@
 #include "types.h"
-#include "uart.h"
+#include "defs.h"
 
 // UART寄存器基址
 #define UART0 0x10000000L

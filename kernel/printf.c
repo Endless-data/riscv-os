@@ -1,7 +1,6 @@
 #include <stdarg.h>
 #include "types.h"
-#include "console.h"
-#include "printf.h"
+#include "defs.h"
 
 // 定义数字字符集（10进制和16进制）
 static const char digits[] = "0123456789abcdef";

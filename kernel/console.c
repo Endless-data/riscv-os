@@ -1,6 +1,5 @@
 #include "types.h"
-#include "uart.h"
-#include "console.h"
+#include "defs.h"
 
 // 初始化控制台
 void 
