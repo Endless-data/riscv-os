@@ -1,46 +1,49 @@
+/* filepath: /Users/tongzhen/code/os-expr/riscv-os/kernel/kernel.ld */
 OUTPUT_ARCH( "riscv" )
 ENTRY( _entry )
 
 SECTIONS
 {
-  /* 确保入口点位于 QEMU 启动的地址 */
+  /*
+   * 确保 entry.S / _entry 位于 0x80000000,
+   * 这是 qemu 的 -kernel 参数跳转的地址
+   */
   . = 0x80000000;
 
-  /* 代码段 */
   .text : {
-    *(.text.boot)     /* 确保启动代码在最开始 */
-    *(.text .text.*)
-    PROVIDE(etext = .);  /* 代码段结束标记 */
+    *(.text.init)      /* 入口代码段 */
+    *(.text .text.*)   /* 所有代码段 */
+    . = ALIGN(0x1000); /* 页面对齐 */
+    PROVIDE(etext = .); /* 代码段结束标记 */
   }
 
-  /* 只读数据段 */
   .rodata : {
     . = ALIGN(16);
-    *(.rodata .rodata.*)
+    *(.srodata .srodata.*) /* 小的只读数据 */
+    . = ALIGN(16);
+    *(.rodata .rodata.*)   /* 只读数据段 */
   }
 
-  /* 数据段 - 已初始化的全局变量 */
   .data : {
     . = ALIGN(16);
-    *(.data .data.*)
-    PROVIDE(edata = .);  /* 数据段结束标记 */
+    *(.sdata .sdata.*)     /* 小的数据段 */
+    . = ALIGN(16);
+    *(.data .data.*)       /* 数据段 */
   }
 
-  /* BSS段 - 未初始化的全局变量 */
   .bss : {
     . = ALIGN(16);
-    PROVIDE(bss_start = .);  /* BSS段开始标记 */
-    *(.bss .bss.*)
-    *(COMMON)
+    *(.sbss .sbss.*)       /* 小的BSS段 */
     . = ALIGN(16);
-    PROVIDE(bss_end = .);    /* BSS段结束标记 */
+    *(.bss .bss.*)         /* BSS段 */
+    . = ALIGN(0x1000);     /* 页面对齐，为物理内存分配做准备 */
   }
 
-  /* 设置系统结束标记 */
+  /* 内核结束标记 - 物理内存分配从这里开始 */
   PROVIDE(end = .);
-
-  /* 栈空间 - 4KB */
-  . = ALIGN(4096);
-  . = . + 4096;
-  PROVIDE(stack_top = .);
+  
+  /* 丢弃不需要的段 */
+  /DISCARD/ : {
+    *(.eh_frame .note.GNU-stack)
+  }
 }
