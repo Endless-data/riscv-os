@@ -2,7 +2,7 @@
 CROSS_COMPILE = riscv64-elf-
 
 # 工具链命令
-CC = $(CROSS_COMPILE)gc
+CC = $(CROSS_COMPILE)gcc
 AS = $(CROSS_COMPILE)as
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
