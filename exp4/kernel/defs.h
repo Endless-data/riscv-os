@@ -41,4 +41,18 @@ uint64 va2pa(pagetable_t pt, uint64 va);
 void kvminit(void);
 void kvminithart(void);
 
+// trap.c - 中断和异常处理
+void start(void);               // 机器模式启动函数
+void trapinit(void);            // 初始化trap系统
+void timerinit(void);           // 初始化时钟
+void kerneltrap(void);          // 内核trap处理
+void clockintr(void);           // 时钟中断处理
+int devintr(void);              // 设备中断检查
+void panic(const char *s);      // 致命错误处理
+void handle_exception(uint64 scause, uint64 sepc, uint64 stval);  // 异常处理
+uint64 get_time(void);          // 获取当前时间
+uint64 get_ticks(void);         // 获取ticks计数
+int get_interrupt_count(void);  // 获取中断计数
+void show_interrupt_stats(void); // 显示中断统计
+
 #endif // _DEFS_H_
