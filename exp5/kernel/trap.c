@@ -82,6 +82,9 @@ void clockintr(void)
   ticks++;
   interrupt_count++;
   
+  // 检查睡眠进程
+  check_sleeping_procs();
+  
   // 请求下一次定时器中断
   w_stimecmp(r_time() + 1000000);
 }

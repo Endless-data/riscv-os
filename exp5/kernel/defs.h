@@ -54,5 +54,21 @@ uint64 get_time(void);          // 获取当前时间
 uint64 get_ticks(void);         // 获取ticks计数
 int get_interrupt_count(void);  // 获取中断计数
 void show_interrupt_stats(void); // 显示中断统计
+void check_sleeping_procs(void); // 检查睡眠进程
+
+// proc.c - 进程管理
+struct proc;
+void procinit(void);            // 初始化进程系统
+int create_process(void (*task)(void)); // 创建进程
+int wait_process(int *status);  // 等待进程结束
+void exit_process(int status);  // 进程退出
+void yield(void);               // 让出CPU
+void sched(void);               // 切换到调度器
+void scheduler(void);           // 调度器
+struct proc* myproc(void);      // 获取当前进程
+void sleep(void *chan, int ms); // 进程睡眠
+void wakeup(void *chan);        // 唤醒进程
+void debug_proc_table(void);    // 调试进程表
+void set_proc_name(const char *name); // 设置进程名
 
 #endif // _DEFS_H_
