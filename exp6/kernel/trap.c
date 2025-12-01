@@ -127,6 +127,22 @@ void kerneltrap(void)
     panic("kerneltrap: interrupts enabled");
   }
   
+  // 检查是否是系统调用 (ecall from S-mode)
+  if(scause == 9) {
+    // S-mode环境调用（系统调用）
+    // sepc指向ecall指令，需要跳过它
+    sepc += 4;
+    w_sepc(sepc);
+    
+    // 处理系统调用
+    extern void syscall(void);
+    syscall();
+    
+    // 恢复状态
+    w_sstatus(sstatus);
+    return;
+  }
+  
   // 处理设备中断
   int which_dev = devintr();
   

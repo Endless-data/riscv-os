@@ -4,282 +4,275 @@
 #include "riscv.h"
 #include "param.h"
 #include "proc.h"
+#include "syscall.h"
 
-// ==================== 测试任务函数 ====================
+// ==================== 系统调用包装函数 ====================
 
-// 简单任务 - 打印信息后退出
-void simple_task(void)
-{
-  set_proc_name("简单任务");
-  printf("[进程 %d] 简单任务开始执行\n", myproc()->pid);
-  
-  // 执行一些工作
-  for(int i = 0; i < 3; i++) {
-    printf("[进程 %d] 工作中... %d/3\n", myproc()->pid, i+1);
-    yield(); // 让出CPU
-  }
-  
-  printf("[进程 %d] 简单任务完成\n", myproc()->pid);
-  exit_process(0);
+// getpid系统调用
+static inline int sys_call_getpid(void) {
+  record_syscall(SYS_getpid);
+  return (int)sys_getpid();
 }
 
-// CPU密集型任务
-void cpu_intensive_task(void)
-{
-  static int task_id = 0;
-  int my_id = ++task_id;
-  char name[16];
-  sprintf(name, "CPU任务%d", my_id);
-  set_proc_name(name);
-  
-  printf("[进程 %d] CPU密集任务 %d 开始\n", myproc()->pid, my_id);
-  
-  volatile uint64 sum = 0;
-  for(int i = 0; i < 5; i++) {
-    // 执行一些计算
-    for(volatile int j = 0; j < 100000; j++) {
-      sum += j;
-    }
-    printf("[进程 %d] CPU任务 %d 进度: %d/5\n", myproc()->pid, my_id, i+1);
-    yield();
-  }
-  
-  printf("[进程 %d] CPU任务 %d 完成, sum=%d\n", myproc()->pid, my_id, (int)sum);
-  exit_process(0);
+// yield系统调用
+static inline int sys_call_yield(void) {
+  record_syscall(SYS_yield);
+  return (int)sys_yield();
 }
 
-// 共享缓冲区（用于测试同步）
-#define BUFFER_SIZE 5
-static int buffer[BUFFER_SIZE];
-static int buf_in = 0;
-static int buf_out = 0;
-static int buf_count = 0;
-
-void shared_buffer_init(void)
-{
-  buf_in = 0;
-  buf_out = 0;
-  buf_count = 0;
+// uptime系统调用
+static inline uint64 sys_call_uptime(void) {
+  record_syscall(SYS_uptime);
+  return sys_uptime();
 }
 
-// 生产者任务
-void producer_task(void)
-{
-  set_proc_name("生产者");
-  printf("[进程 %d] 生产者启动\n", myproc()->pid);
+// sleep系统调用
+static inline int sys_call_sleep(int ms) {
+  struct proc *p = myproc();
+  if(!p || !p->trapframe) return -1;
   
-  for(int i = 0; i < 10; i++) {
-    // 等待缓冲区有空间
-    while(buf_count >= BUFFER_SIZE) {
-      yield();
-    }
-    
-    // 生产数据
-    buffer[buf_in] = i;
-    buf_in = (buf_in + 1) % BUFFER_SIZE;
-    buf_count++;
-    
-    printf("[进程 %d] 生产: %d (缓冲区: %d/%d)\n", 
-           myproc()->pid, i, buf_count, BUFFER_SIZE);
-    yield();
-  }
-  
-  printf("[进程 %d] 生产者完成\n", myproc()->pid);
-  exit_process(0);
+  // 设置参数
+  p->trapframe->a0 = ms;
+  record_syscall(SYS_sleep);
+  return (int)sys_sleep();
 }
 
-// 消费者任务
-void consumer_task(void)
-{
-  set_proc_name("消费者");
-  printf("[进程 %d] 消费者启动\n", myproc()->pid);
+// fork系统调用
+static inline int sys_call_fork(void) {
+  record_syscall(SYS_fork);
+  return (int)sys_fork();
+}
+
+// write系统调用
+static inline int sys_call_write(int fd, const char *buf, int n) {
+  struct proc *p = myproc();
+  if(!p || !p->trapframe) return -1;
   
-  for(int i = 0; i < 10; i++) {
-    // 等待缓冲区有数据
-    while(buf_count <= 0) {
-      yield();
-    }
-    
-    // 消费数据
-    int data = buffer[buf_out];
-    buf_out = (buf_out + 1) % BUFFER_SIZE;
-    buf_count--;
-    
-    printf("[进程 %d] 消费: %d (缓冲区: %d/%d)\n", 
-           myproc()->pid, data, buf_count, BUFFER_SIZE);
-    yield();
-  }
-  
-  printf("[进程 %d] 消费者完成\n", myproc()->pid);
-  exit_process(0);
+  // 设置参数
+  p->trapframe->a0 = fd;
+  p->trapframe->a1 = (uint64)buf;
+  p->trapframe->a2 = n;
+  record_syscall(SYS_write);
+  return (int)sys_write();
 }
 
 // ==================== 测试函数 ====================
 
-// 测试1：进程创建测试
-void test_process_creation(void)
+// 测试1：基础系统调用测试
+void test_basic_syscalls(void)
 {
-  printf("正在测试进程创建...\n");
+  printf("测试基础系统调用...\n");
   
-  // 测试基本的进程创建
-  printf("  [1] 创建单个进程\n");
-  int pid = create_process(simple_task);
-  if(pid > 0) {
-    printf("      ✓ 成功创建进程 PID=%d\n", pid);
-  } else {
-    printf("      ✗ 进程创建失败\n");
-    return;
+  // 测试getpid
+  printf("  [1] 测试 getpid\n");
+  int pid = sys_call_getpid();
+  printf("      当前进程 PID: %d\n", pid);
+  
+  // 测试uptime
+  printf("  [2] 测试 uptime\n");
+  uint64 uptime = sys_call_uptime();
+  printf("      系统运行时间: %d ticks\n", (int)uptime);
+  
+  // 测试yield
+  printf("  [3] 测试 yield\n");
+  for(int i = 0; i < 3; i++) {
+    printf("      让出CPU %d/3\n", i+1);
+    sys_call_yield();
   }
   
-  // 显示进程表 - 应该看到2个进程（主进程 + 新进程）
-  printf("      --- 当前进程表 ---\n");
-  debug_proc_table();
-  
-  // 等待第一个进程完成
-  printf("      等待进程完成...\n");
-  int exit_status;
-  int wpid = wait_process(&exit_status);
-  if(wpid > 0) {
-    printf("      ✓ 进程 %d 已退出，退出码: %d\n", wpid, exit_status);
-  }
-  
-  // 测试进程表限制
-  printf("  [2] 测试进程表限制\n");
-  int pids[NPROC];
-  int count = 0;
-  
-  // 创建多个进程
-  for(int i = 0; i < NPROC + 2; i++) {
-    int p = create_process(simple_task);
-    if(p > 0) {
-      pids[count++] = p;
-    } else {
-      printf("      达到进程表限制，无法创建更多进程\n");
-      break;
-    }
-  }
-  printf("      已创建 %d 个进程\n", count);
-  
-  // 显示满载的进程表
-  printf("      --- 进程表（满载状态）---\n");
-  debug_proc_table();
-  
-  // 清理测试进程
-  printf("      清理测试进程...\n");
-  for(int i = 0; i < count; i++) {
-    int wpid = wait_process(&exit_status);
-    printf("      进程 %d 已清理 (退出码: %d)\n", wpid, exit_status);
-  }
-  
-  // 显示清理后的进程表
-  printf("      --- 清理后的进程表 ---\n");
-  debug_proc_table();
-  
-  printf("✓ 进程创建测试完成\n\n");
+  printf("✓ 基础系统调用测试完成\n\n");
 }
 
-// 测试2：调度器测试
-void test_scheduler(void)
+// 测试2：参数传递测试
+void test_parameter_passing(void)
 {
-  printf("正在测试调度器...\n");
+  printf("测试参数传递...\n");
   
-  // 创建多个CPU密集型进程
-  printf("  [1] 创建3个CPU密集型进程\n");
-  int cpu_pids[3];
-  for(int i = 0; i < 3; i++) {
-    cpu_pids[i] = create_process(cpu_intensive_task);
-    printf("      创建进程 PID=%d\n", cpu_pids[i]);
-  }
+  // 测试write系统调用
+  printf("  [1] 测试 write 系统调用\n");
+  char buffer[] = "Hello from syscall!\n";
   
-  // 显示创建后的进程表
-  printf("  --- 创建后的进程表 ---\n");
-  debug_proc_table();
+  int bytes_written = sys_call_write(1, buffer, 20);
+  printf("      写入 %d 字节\n", bytes_written);
   
-  // 观察调度行为
-  printf("  [2] 观察调度行为\n");
+  // 测试边界情况
+  printf("  [2] 测试边界情况\n");
+  
+  // 无效文件描述符
+  int ret = sys_call_write(-1, buffer, 10);
+  printf("      无效fd返回: %d (期望 -1)\n", ret);
+  
+  // 空指针
+  ret = sys_call_write(1, 0, 10);
+  printf("      空指针返回: %d (期望 -1)\n", ret);
+  
+  // 负数长度
+  ret = sys_call_write(1, buffer, -1);
+  printf("      负数长度返回: %d (期望 -1)\n", ret);
+  
+  printf("✓ 参数传递测试完成\n\n");
+}
+
+// 测试3：性能测试
+void test_syscall_performance(void)
+{
+  printf("测试系统调用性能...\n");
+  
+  printf("  [1] 测试 10000 次 getpid 调用\n");
   uint64 start_time = get_time();
   
-  // 让调度器运行，等待所有CPU任务完成
-  printf("      等待CPU任务完成...\n");
-  for(int i = 0; i < 3; i++) {
-    int exit_status;
-    int wpid = wait_process(&exit_status);
-    printf("      CPU任务进程 %d 完成 (退出码: %d)\n", wpid, exit_status);
+  for(int i = 0; i < 10000; i++) {
+    sys_call_getpid();
   }
   
   uint64 end_time = get_time();
   uint64 cycles = end_time - start_time;
   
-  printf("      调度测试耗时: %llu 周期\n", cycles);
-  printf("✓ 调度器测试完成\n\n");
+  printf("      耗时: %d 周期\n", (int)cycles);
+  printf("      平均每次调用: %d 周期\n", (int)(cycles / 10000));
+  
+  printf("✓ 性能测试完成\n\n");
 }
 
-// 测试3：同步机制测试
-void test_synchronization(void)
+// 测试4：sleep系统调用测试
+void test_sleep_syscall(void)
 {
-  printf("正在测试同步机制...\n");
+  printf("测试 sleep 系统调用...\n");
   
-  // 测试生产者-消费者场景
-  printf("  [1] 初始化共享缓冲区\n");
-  shared_buffer_init();
-  
-  printf("  [2] 创建生产者和消费者\n");
-  int pid1 = create_process(producer_task);
-  int pid2 = create_process(consumer_task);
-  printf("      生产者 PID=%d\n", pid1);
-  printf("      消费者 PID=%d\n", pid2);
-  
-  // 显示进程表 - 应该看到3个进程
-  printf("  --- 当前进程表 ---\n");
-  debug_proc_table();
-  
-  // 等待两个进程完成
-  printf("  [3] 等待生产者和消费者完成\n");
-  for(int i = 0; i < 2; i++) {
-    int exit_status;
-    int wpid = wait_process(&exit_status);
-    printf("      进程 %d 完成 (退出码: %d)\n", wpid, exit_status);
+  for(int i = 0; i < 3; i++) {
+    printf("  [%d] 睡眠 100ms\n", i+1);
+    uint64 before = get_time();
+    sys_call_sleep(100);
+    uint64 after = get_time();
+    printf("      实际耗时: %d 周期\n", (int)(after - before));
   }
   
-  printf("✓ 同步机制测试完成\n\n");
+  printf("✓ sleep 测试完成\n\n");
 }
 
-// ==================== 主进程任务 ====================
-// 主进程将运行所有测试
-void main_process_task(void)
+// 测试5：简化的fork测试（使用辅助函数）
+void fork_child_task(void)
+{
+  // 这是子进程要执行的代码
+  set_proc_name("fork-child");
+  printf("    [子进程] PID=%d, 通过fork创建！\n", sys_call_getpid());
+  
+  for(int i = 0; i < 3; i++) {
+    printf("    [子进程 %d] 计数: %d\n", sys_call_getpid(), i+1);
+    sys_call_yield();
+  }
+  
+  printf("    [子进程 %d] 退出，返回码: 99\n", sys_call_getpid());
+  exit_process(99);
+}
+
+void test_fork_syscall(void)
+{
+  printf("测试 fork 系统调用...\n");
+  
+  printf("  [1] 父进程准备 fork\n");
+  printf("      父进程 PID: %d\n", sys_call_getpid());
+  
+  int pid = sys_call_fork();
+  
+  if(pid < 0) {
+    printf("      ✗ fork 失败\n");
+    return;
+  }
+  
+  printf("      ✓ fork 成功，子进程 PID=%d\n", pid);
+  printf("  [2] 父进程等待子进程\n");
+  
+  int status;
+  int wpid = wait_process(&status);
+  
+  printf("      ✓ 子进程 %d 已退出，状态码: %d\n", wpid, status);
+  printf("✓ fork 测试完成\n\n");
+}
+
+// 测试6：create_process 测试（用于对比）
+void child_process(void)
+{
+  set_proc_name("创建子进程");
+  printf("    [子进程 %d] 通过 create_process 创建\n", sys_call_getpid());
+  
+  for(int i = 0; i < 2; i++) {
+    printf("    [子进程 %d] 工作中 %d/2\n", sys_call_getpid(), i+1);
+    sys_call_yield();
+  }
+  
+  printf("    [子进程 %d] 退出，返回码: 42\n", sys_call_getpid());
+  exit_process(42);
+}
+
+void test_create_process(void)
+{
+  printf("测试 create_process (非fork)...\n");
+  
+  printf("  [1] 使用 create_process 创建子进程\n");
+  int child_pid = create_process(child_process);
+  
+  if(child_pid < 0) {
+    printf("      ✗ 创建子进程失败\n");
+    return;
+  }
+  
+  printf("      ✓ 子进程已创建 PID=%d\n", child_pid);
+  
+  printf("  [2] 父进程等待子进程\n");
+  int status;
+  int wpid = wait_process(&status);
+  
+  printf("      ✓ 子进程 %d 已退出，状态码: %d\n", wpid, status);
+  
+  printf("✓ create_process 测试完成\n\n");
+}
+
+// ==================== 主测试进程 ====================
+void main_test_process(void)
 {
   set_proc_name("主测试进程");
-  printf("\n[主进程 %d] 开始运行测试\n", myproc()->pid);
+  printf("\n[主进程 %d] 开始系统调用测试\n", sys_call_getpid());
   
-  // 运行三个核心测试
-  printf("\n[测试1] 进程创建测试\n");
+  // 禁用详细的系统调用调试输出（避免输出过多）
+  set_syscall_debug(0);
+  
+  printf("\n[测试1] 基础系统调用测试\n");
   printf("=====================================\n");
-  test_process_creation();
+  test_basic_syscalls();
   
-  // 显示当前进程表
-  debug_proc_table();
-  
-  printf("\n[测试2] 调度器测试\n");
+  printf("\n[测试2] 参数传递测试\n");
   printf("=====================================\n");
-  test_scheduler();
+  test_parameter_passing();
   
-  printf("\n[测试3] 同步机制测试\n");
+  printf("\n[测试3] 性能测试\n");
   printf("=====================================\n");
-  test_synchronization();
+  test_syscall_performance();
   
-  // 显示最终进程表
+  printf("\n[测试4] sleep系统调用测试\n");
+  printf("=====================================\n");
+  test_sleep_syscall();
+  
+  printf("\n[测试5] fork系统调用测试\n");
+  printf("=====================================\n");
+  test_fork_syscall();
+  
+  printf("\n[测试6] create_process测试\n");
+  printf("=====================================\n");
+  test_create_process();
+  
+  // 显示系统调用统计
   printf("\n");
   printf("=====================================\n");
-  printf("      最终进程表状态                 \n");
+  printf("      系统调用统计信息               \n");
   printf("=====================================\n");
-  debug_proc_table();
+  show_syscall_stats();
   
   printf("\n");
   printf("=====================================\n");
   printf("      所有测试完成！                 \n");
   printf("=====================================\n");
   
-  // 主测试进程退出
   exit_process(0);
 }
 
@@ -293,7 +286,7 @@ main(void)
   // 清屏并输出欢迎信息
   clear_screen();
   printf("=====================================\n");
-  printf("  实验5：进程管理与调度测试          \n");
+  printf("  实验6：系统调用测试                \n");
   printf("=====================================\n");
   printf("Hart ID: %d\n", (int)r_tp());
   printf("=====================================\n");
@@ -301,7 +294,6 @@ main(void)
   // 初始化系统
   printf("\n[步骤1] 初始化物理内存管理\n");
   pmm_init();
-  print_memory_stats();
   
   printf("\n[步骤2] 初始化中断系统\n");
   trapinit();
@@ -309,10 +301,6 @@ main(void)
   printf("\n[步骤3] 初始化进程系统\n");
   procinit();
   printf("✓ 进程系统初始化完成\n");
-  printf("  最大进程数: %d\n", NPROC);
-  
-  // 显示初始进程表
-  debug_proc_table();
   
   printf("\n");
   printf("=====================================\n");
@@ -320,7 +308,7 @@ main(void)
   printf("=====================================\n");
   
   // 创建主测试进程
-  int pid = create_process(main_process_task);
+  int pid = create_process(main_test_process);
   if(pid < 0) {
     panic("无法创建主测试进程");
   }

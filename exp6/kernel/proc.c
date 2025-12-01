@@ -66,6 +66,7 @@ found:
   p->runtime = 0;
   p->killed = 0;
   p->chan = 0;
+  p->xstate = 0;
   
   // 分配内核栈
   p->kstack = (uint64)alloc_page();
@@ -74,23 +75,58 @@ found:
     return 0;
   }
   
+  // 分配trapframe
+  p->trapframe = (struct trapframe*)alloc_page();
+  if(p->trapframe == 0) {
+    free_page((void*)p->kstack);
+    p->kstack = 0;
+    p->state = UNUSED;
+    return 0;
+  }
+  
+  // 初始化trapframe
+  p->trapframe->kernel_satp = 0;
+  p->trapframe->kernel_sp = p->kstack + KSTACK_SIZE;
+  p->trapframe->kernel_trap = 0;
+  p->trapframe->epc = 0;
+  p->trapframe->kernel_hartid = 0;
+  
   return p;
 }
 
 // 释放进程资源
 static void freeproc(struct proc *p)
 {
+  if(p->trapframe) {
+    free_page((void*)p->trapframe);
+  }
   if(p->kstack) {
     free_page((void*)p->kstack);
   }
+  p->trapframe = 0;
   p->kstack = 0;
   p->pid = 0;
   p->state = UNUSED;
   p->name[0] = 0;
   p->chan = 0;
   p->killed = 0;
+  p->xstate = 0;
   p->runtime = 0;
   p->start_time = 0;
+}
+
+// fork返回函数 - 子进程从这里开始执行
+void forkret(void)
+{
+  // 在简化OS中，fork 的子进程执行固定的任务
+  // 声明子进程要执行的函数（在 main.c 中定义）
+  extern void fork_child_task(void);
+  
+  // 执行子进程任务
+  fork_child_task();
+  
+  // 如果子进程函数返回（不应该发生），退出
+  exit_process(0);
 }
 
 // 创建一个新进程
@@ -116,6 +152,49 @@ int create_process(void (*task)(void))
   return p->pid;
 }
 
+// fork - 复制当前进程（简化版）
+// 注意：这是简化实现，子进程执行 forkret 函数
+// 返回：父进程返回子进程PID，失败返回-1
+int fork_process(void)
+{
+  struct proc *np;  // 新进程
+  struct proc *p = myproc();  // 当前进程
+  
+  if(!p) {
+    return -1;
+  }
+  
+  // 分配新进程
+  np = allocproc();
+  if(np == 0) {
+    return -1;
+  }
+  
+  // 复制trapframe（保存参数和状态）
+  if(p->trapframe && np->trapframe) {
+    *(np->trapframe) = *(p->trapframe);
+  }
+  
+  // 设置子进程的上下文
+  // 在简化实现中，让子进程执行 forkret 函数
+  extern void forkret(void);
+  np->context.ra = (uint64)forkret;
+  np->context.sp = np->kstack + KSTACK_SIZE;
+  
+  // 复制进程名称
+  int i;
+  for(i = 0; i < 16 && p->name[i]; i++) {
+    np->name[i] = p->name[i];
+  }
+  np->name[i] = 0;
+  
+  // 设置新进程为可运行状态
+  np->state = RUNNABLE;
+  
+  // 父进程返回子进程PID
+  return np->pid;
+}
+
 // 等待任意一个子进程结束
 int wait_process(int *status)
 {
@@ -130,7 +209,7 @@ int wait_process(int *status)
         // 找到一个僵尸进程
         int pid = p->pid;
         if(status) {
-          *status = 0;
+          *status = p->xstate;  // 返回进程的退出状态码
         }
         freeproc(p);
         return pid;
@@ -144,7 +223,7 @@ int wait_process(int *status)
       return -1; // 没有子进程
     }
     
-    // 等待进程结束，简单地yield
+    // 让出CPU，等待子进程退出
     yield();
   }
 }
@@ -157,6 +236,7 @@ void exit_process(int status)
   if(p == 0)
     panic("exit_process: no current process");
   
+  p->xstate = status;
   p->state = ZOMBIE;
   
   // 切换到调度器

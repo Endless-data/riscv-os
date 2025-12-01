@@ -60,6 +60,7 @@ void check_sleeping_procs(void); // 检查睡眠进程
 struct proc;
 void procinit(void);            // 初始化进程系统
 int create_process(void (*task)(void)); // 创建进程
+int fork_process(void);         // fork当前进程
 int wait_process(int *status);  // 等待进程结束
 void exit_process(int status);  // 进程退出
 void yield(void);               // 让出CPU
@@ -70,5 +71,27 @@ void sleep(void *chan, int ms); // 进程睡眠
 void wakeup(void *chan);        // 唤醒进程
 void debug_proc_table(void);    // 调试进程表
 void set_proc_name(const char *name); // 设置进程名
+
+// syscall.c - 系统调用
+void syscall(void);             // 系统调用分发器
+void argint(int n, int *ip);    // 获取整型参数
+void argaddr(int n, uint64 *ip); // 获取地址参数
+void show_syscall_stats(void);  // 显示系统调用统计
+void set_syscall_debug(int enable); // 设置调试开关
+
+// sysproc.c - 系统调用实现函数
+// 注意：所有系统调用函数返回 uint64 以符合 xv6 约定
+uint64          sys_getpid(void);
+uint64          sys_exit(void);
+uint64          sys_wait(void);
+uint64          sys_fork(void);
+uint64          sys_yield(void);
+uint64          sys_sleep(void);
+uint64          sys_uptime(void);
+uint64          sys_write(void);
+uint64          sys_read(void);
+
+// 手动记录系统调用（用于直接调用时）
+void            record_syscall(int num);
 
 #endif // _DEFS_H_
