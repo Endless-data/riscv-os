@@ -34,9 +34,9 @@ void start(void)
   x |= MSTATUS_MPP_S;
   w_mstatus(x);
 
-  // 设置M Exception Program Counter为main，用于mret
-  extern void main();
-  w_mepc((uint64)main);
+  // 设置M Exception Program Counter为os_start，用于mret
+  extern void os_start();
+  w_mepc((uint64)os_start);
 
   // 暂时禁用分页
   w_satp(0);
@@ -59,7 +59,7 @@ void start(void)
   int id = r_mhartid();
   w_tp(id);
 
-  // 切换到supervisor mode并跳转到main
+  // 切换到supervisor mode并跳转到os_start
   asm volatile("mret");
 }
 

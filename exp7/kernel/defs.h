@@ -3,6 +3,18 @@
 
 #include "types.h"
 
+// string.c - 字符串和内存操作
+void* memcpy(void *dst, const void *src, uint64 n);
+void* memset(void *dst, int c, uint64 n);
+int memcmp(const void *s1, const void *s2, uint64 n);
+uint64 strlen(const char *s);
+int strcmp(const char *s1, const char *s2);
+int strncmp(const char *s1, const char *s2, uint64 n);
+char* strcpy(char *dst, const char *src);
+char* strncpy(char *dst, const char *src, uint64 n);
+char* strcat(char *dst, const char *src);
+char* strchr(const char *s, int c);
+
 // uart.c
 void uart_init(void);
 void uart_putc(char c);
@@ -93,5 +105,19 @@ uint64          sys_read(void);
 
 // 手动记录系统调用（用于直接调用时）
 void            record_syscall(int num);
+
+// fs.c - 文件系统
+void fsinit(void);
+struct inode* fs_create(char *path, int16 type);
+struct inode* fs_open(char *path);
+int fs_unlink(char *path);
+int fs_read(struct inode *ip, char *dst, uint32 off, uint32 n);
+int fs_write(struct inode *ip, char *src, uint32 off, uint32 n);
+void fs_close(struct inode *ip);
+void debug_disk_io(void);
+uint32 count_free_blocks(void);
+uint32 count_free_inodes(void);
+void debug_filesystem_state(void);
+void debug_inode_usage(void);
 
 #endif // _DEFS_H_

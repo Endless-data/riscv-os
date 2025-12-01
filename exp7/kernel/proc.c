@@ -118,14 +118,9 @@ static void freeproc(struct proc *p)
 // fork返回函数 - 子进程从这里开始执行
 void forkret(void)
 {
-  // 在简化OS中，fork 的子进程执行固定的任务
-  // 声明子进程要执行的函数（在 main.c 中定义）
-  extern void fork_child_task(void);
-  
-  // 执行子进程任务
-  fork_child_task();
-  
-  // 如果子进程函数返回（不应该发生），退出
+  // exp7不使用fork，所以这个函数不会被调用
+  // 如果意外调用，直接退出
+  printf("警告: forkret被意外调用\n");
   exit_process(0);
 }
 
