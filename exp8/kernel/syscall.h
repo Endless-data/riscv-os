@@ -12,5 +12,7 @@
 #define SYS_uptime  7
 #define SYS_write   8
 #define SYS_read    9
+#define SYS_setpriority 10  // 设置进程优先级
+#define SYS_getpriority 11  // 获取进程优先级
 
 #endif // _SYSCALL_H_

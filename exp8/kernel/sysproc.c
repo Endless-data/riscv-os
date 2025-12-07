@@ -127,3 +127,55 @@ uint64 sys_read(void)
   printf("[警告] read系统调用暂未实现\n");
   return -1;
 }
+
+// sys_setpriority - 设置进程优先级
+uint64 sys_setpriority(void)
+{
+  int pid, priority;
+  
+  argint(0, &pid);
+  argint(1, &priority);
+  
+  // 检查优先级范围
+  if(priority < MIN_PRIORITY || priority > MAX_PRIORITY) {
+    printf("[错误] setpriority: 优先级超出范围 [%d-%d]\n", MIN_PRIORITY, MAX_PRIORITY);
+    return -1;
+  }
+  
+  // 查找进程
+  struct proc *p;
+  extern struct proc proc[];
+  
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED && p->pid == pid) {
+      int old_priority = p->priority;
+      p->priority = priority;
+      printf("[系统调用] setpriority: PID=%d 优先级 %d → %d\n", pid, old_priority, priority);
+      return 0;
+    }
+  }
+  
+  printf("[错误] setpriority: 进程 %d 不存在\n", pid);
+  return -1;
+}
+
+// sys_getpriority - 获取进程优先级
+uint64 sys_getpriority(void)
+{
+  int pid;
+  
+  argint(0, &pid);
+  
+  // 查找进程
+  struct proc *p;
+  extern struct proc proc[];
+  
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED && p->pid == pid) {
+      return p->priority;
+    }
+  }
+  
+  printf("[错误] getpriority: 进程 %d 不存在\n", pid);
+  return -1;
+}

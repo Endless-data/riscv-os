@@ -38,6 +38,9 @@ void procinit(void)
     p->killed = 0;
     p->runtime = 0;
     p->start_time = 0;
+    p->priority = DEFAULT_PRIORITY;  // 初始化优先级
+    p->ticks = 0;
+    p->wait_time = 0;
   }
 }
 
@@ -67,6 +70,11 @@ found:
   p->killed = 0;
   p->chan = 0;
   p->xstate = 0;
+  
+  // 初始化优先级调度字段
+  p->priority = DEFAULT_PRIORITY;
+  p->ticks = 0;
+  p->wait_time = 0;
   
   // 分配内核栈
   p->kstack = (uint64)alloc_page();
@@ -264,27 +272,78 @@ void sched(void)
   swtch(&p->context, &cpu.scheduler);
 }
 
-// 调度器 - 永不返回
-void scheduler(void)
+// 选择最高优先级的可运行进程
+static struct proc* select_highest_priority(void)
+{
+  struct proc *p, *best = 0;
+  
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != RUNNABLE)
+      continue;
+      
+    if(best == 0 || p->priority > best->priority) {
+      best = p;
+    }
+    // 如果优先级相同，选择等待时间更长的（FCFS）
+    else if(p->priority == best->priority && p->wait_time > best->wait_time) {
+      best = p;
+    }
+  }
+  
+  return best;
+}
+
+// Aging机制：提升长时间等待进程的优先级
+static void aging_boost(void)
 {
   struct proc *p;
   
-  for(;;) {
-    // 查找一个RUNNABLE进程
-    for(p = proc; p < &proc[NPROC]; p++) {
-      if(p->state != RUNNABLE)
-        continue;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state == RUNNABLE) {
+      p->wait_time++;
       
+      // 如果等待时间超过阈值，提升优先级
+      if(p->wait_time >= AGING_THRESHOLD && p->priority < MAX_PRIORITY) {
+        p->priority += AGING_BOOST;
+        p->wait_time = 0;  // 重置等待时间
+        
+        if(p->priority > MAX_PRIORITY)
+          p->priority = MAX_PRIORITY;
+      }
+    }
+  }
+}
+
+// 调度器 - 优先级调度算法
+void scheduler(void)
+{
+  struct proc *p;
+  uint64 last_aging_time = r_time();
+  
+  for(;;) {
+    // 定期执行aging（每100个时钟周期）
+    uint64 now = r_time();
+    if(now - last_aging_time > 100000) {  // 约10ms
+      aging_boost();
+      last_aging_time = now;
+    }
+    
+    // 选择最高优先级的进程
+    p = select_highest_priority();
+    
+    if(p) {
       // 切换到该进程
       p->state = RUNNING;
+      p->wait_time = 0;  // 重置等待时间
       cpu.proc = p;
       
       uint64 start = r_time();
       swtch(&cpu.scheduler, &p->context);
       uint64 end = r_time();
       
-      // 累加运行时间
+      // 累加运行时间和时间片计数
       p->runtime += (end - start);
+      p->ticks++;
       
       // 进程已经切换回来
       cpu.proc = 0;
@@ -294,12 +353,12 @@ void scheduler(void)
         // 在实际系统中，父进程会wait来清理
         // 这里简单处理
       }
+    } else {
+      // 没有可运行的进程，使能中断并等待
+      intr_on();
+      asm volatile("wfi"); // 等待中断
+      intr_off();
     }
-    
-    // 没有可运行的进程，使能中断并等待
-    intr_on();
-    asm volatile("wfi"); // 等待中断
-    intr_off();
   }
 }
 

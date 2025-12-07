@@ -102,9 +102,12 @@ uint64          sys_sleep(void);
 uint64          sys_uptime(void);
 uint64          sys_write(void);
 uint64          sys_read(void);
+uint64          sys_setpriority(void);  // 设置进程优先级
+uint64          sys_getpriority(void);  // 获取进程优先级
 
 // 手动记录系统调用（用于直接调用时）
 void            record_syscall(int num);
+
 
 // fs.c - 文件系统
 void fsinit(void);

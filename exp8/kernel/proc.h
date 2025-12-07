@@ -96,6 +96,18 @@ struct proc {
   uint64 wakeup_time;          // 唤醒时间（用于sleep）
   uint64 runtime;              // 累计运行时间
   uint64 start_time;           // 进程创建时间
+  
+  // 优先级调度相关字段
+  int priority;                // 进程优先级 (0-10, 默认5, 值越大优先级越高)
+  int ticks;                   // 已使用CPU时间片计数
+  uint64 wait_time;            // 等待时长（用于aging机制）
 };
+
+// 优先级调度常量
+#define DEFAULT_PRIORITY 5      // 默认优先级
+#define MIN_PRIORITY 0          // 最低优先级
+#define MAX_PRIORITY 10         // 最高优先级
+#define AGING_THRESHOLD 10      // aging触发阈值（ticks）
+#define AGING_BOOST 1           // aging时优先级提升量
 
 #endif // _PROC_H_

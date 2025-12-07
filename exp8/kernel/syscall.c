@@ -11,7 +11,7 @@
 static int debug_syscalls = 1;
 
 // 系统调用名称（用于调试）
-static const char* syscall_names[10] = {
+static const char* syscall_names[12] = {
   [0]           = 0,
   [SYS_getpid]  = "getpid",
   [SYS_exit]    = "exit",
@@ -22,6 +22,8 @@ static const char* syscall_names[10] = {
   [SYS_uptime]  = "uptime",
   [SYS_write]   = "write",
   [SYS_read]    = "read",
+  [SYS_setpriority] = "setpriority",
+  [SYS_getpriority] = "getpriority",
 };
 
 // 从trapframe获取第n个参数（原始值）
@@ -71,6 +73,8 @@ extern uint64 sys_sleep(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_write(void);
 extern uint64 sys_read(void);
+extern uint64 sys_setpriority(void);
+extern uint64 sys_getpriority(void);
 
 // 系统调用表
 static uint64 (*syscalls[])(void) = {
@@ -83,16 +87,18 @@ static uint64 (*syscalls[])(void) = {
   [SYS_uptime]  sys_uptime,
   [SYS_write]   sys_write,
   [SYS_read]    sys_read,
+  [SYS_setpriority] sys_setpriority,
+  [SYS_getpriority] sys_getpriority,
 };
 
 // 系统调用统计
-static uint64 syscall_counts[10] = {0};
+static uint64 syscall_counts[12] = {0};
 static uint64 syscall_total = 0;
 
 // 手动记录系统调用（用于直接调用时）
 void record_syscall(int num)
 {
-  if(num > 0 && num < 10) {
+  if(num > 0 && num < 12) {
     syscall_counts[num]++;
     syscall_total++;
   }
@@ -112,13 +118,13 @@ void syscall(void)
   num = p->trapframe->a7;
   
   // 调试输出
-  if(debug_syscalls && num > 0 && num < 10) {
+  if(debug_syscalls && num > 0 && num < 12) {
     printf("[系统调用] PID=%d 调用 %s (编号=%d)\n",
            p->pid, syscall_names[num], num);
   }
   
   // 检查系统调用号是否有效
-  if(num > 0 && num < 10 && syscalls[num]) {
+  if(num > 0 && num < 12 && syscalls[num]) {
     // 调用对应的系统调用处理函数
     uint64 ret = syscalls[num]();
     
@@ -146,7 +152,7 @@ void show_syscall_stats(void)
   printf("总调用次数: %d\n", (int)syscall_total);
   printf("\n各系统调用次数:\n");
   
-  for(int i = 1; i < 10; i++) {
+  for(int i = 1; i < 12; i++) {
     if(syscall_counts[i] > 0 && syscall_names[i]) {
       printf("  %s: %d 次\n", syscall_names[i], (int)syscall_counts[i]);
     }
